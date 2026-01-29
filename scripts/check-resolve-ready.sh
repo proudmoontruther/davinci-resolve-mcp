@@ -10,6 +10,17 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Detect platform
+PLATFORM=$(uname -s)
+IS_MACOS=false
+IS_LINUX=false
+
+if [[ "$PLATFORM" == "Darwin" ]]; then
+    IS_MACOS=true
+elif [[ "$PLATFORM" == "Linux" ]]; then
+    IS_LINUX=true
+fi
+
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 VENV_DIR="$SCRIPT_DIR/venv"
 CURSOR_CONFIG_FILE="$HOME/.cursor/mcp.json"
@@ -25,11 +36,17 @@ REQUIRED_FILES=(
 # Function to check if DaVinci Resolve is running
 check_resolve_running() {
     # Look for the actual process name "Resolve" (not "DaVinci Resolve")
-    if pgrep -x "Resolve" > /dev/null; then
-        return 0 # Running
-    else
-        return 1 # Not running
+    if $IS_MACOS; then
+        if pgrep -x "Resolve" > /dev/null; then
+            return 0 # Running
+        fi
+    elif $IS_LINUX; then
+        # On Linux, the process might be named "resolve" or "Resolve"
+        if pgrep -i "resolve" > /dev/null; then
+            return 0 # Running
+        fi
     fi
+    return 1 # Not running
 }
 
 # Function to check environment variables
@@ -58,14 +75,23 @@ check_venv() {
 check_required_files() {
     local missing_files=()
     local wrong_permissions=()
-    
+
     for req in "${REQUIRED_FILES[@]}"; do
         IFS=':' read -r file perm <<< "$req"
-        
+
         if [ ! -f "$file" ]; then
             missing_files+=("$file")
-        elif [ "$(stat -f '%A' "$file")" != "$perm" ]; then
-            wrong_permissions+=("$file")
+        else
+            # Use platform-specific stat command
+            if $IS_MACOS; then
+                file_perm=$(stat -f '%A' "$file")
+            elif $IS_LINUX; then
+                file_perm=$(stat -c '%a' "$file")
+            fi
+
+            if [ "$file_perm" != "$perm" ]; then
+                wrong_permissions+=("$file")
+            fi
         fi
     done
     
@@ -430,7 +456,20 @@ else
     read -p "Would you like to start DaVinci Resolve now? (y/n): " start_resolve
     if [[ "$start_resolve" =~ ^[Yy]$ ]]; then
         echo -e "${YELLOW}Starting DaVinci Resolve...${NC}"
-        open -a "DaVinci Resolve"
+        if $IS_MACOS; then
+            open -a "DaVinci Resolve"
+        elif $IS_LINUX; then
+            # Try common launch methods for Linux
+            if [ -f "/opt/resolve/bin/resolve" ]; then
+                /opt/resolve/bin/resolve &
+            elif command -v resolve &> /dev/null; then
+                resolve &
+            else
+                echo -e "${RED}Could not find DaVinci Resolve executable${NC}"
+                echo -e "${YELLOW}Please start DaVinci Resolve manually and run this script again${NC}"
+                exit 1
+            fi
+        fi
         echo -e "${YELLOW}Waiting for DaVinci Resolve to start...${NC}"
         sleep 5
         
@@ -455,12 +494,17 @@ if check_resolve_env; then
 else
     echo -e "${RED}✗ Resolve environment variables are NOT set${NC}"
     echo -e "${YELLOW}Setting default environment variables...${NC}"
-    
-    # Set default paths for macOS
-    export RESOLVE_SCRIPT_API="/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting"
-    export RESOLVE_SCRIPT_LIB="/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/fusionscript.so"
+
+    # Set default paths based on platform
+    if $IS_MACOS; then
+        export RESOLVE_SCRIPT_API="/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting"
+        export RESOLVE_SCRIPT_LIB="/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/fusionscript.so"
+    elif $IS_LINUX; then
+        export RESOLVE_SCRIPT_API="/opt/resolve/Developer/Scripting"
+        export RESOLVE_SCRIPT_LIB="/opt/resolve/libs/Fusion/fusionscript.so"
+    fi
     export PYTHONPATH="$PYTHONPATH:$RESOLVE_SCRIPT_API/Modules/"
-    
+
     echo -e "${GREEN}✓ Environment variables set for this session:${NC}"
     echo -e "  RESOLVE_SCRIPT_API = $RESOLVE_SCRIPT_API"
     echo -e "  RESOLVE_SCRIPT_LIB = $RESOLVE_SCRIPT_LIB"
@@ -555,7 +599,21 @@ echo ""
 read -p "Would you like to launch Cursor now? (y/n): " launch_cursor
 if [[ "$launch_cursor" =~ ^[Yy]$ ]]; then
     echo -e "${YELLOW}Launching Cursor...${NC}"
-    open -a "Cursor"
+    if $IS_MACOS; then
+        open -a "Cursor"
+    elif $IS_LINUX; then
+        # Try common launch methods for Cursor on Linux
+        if command -v cursor &> /dev/null; then
+            cursor &
+        elif command -v code &> /dev/null; then
+            # Cursor is sometimes installed as 'code' on Linux
+            code &
+        elif [ -f "$HOME/.local/bin/cursor" ]; then
+            "$HOME/.local/bin/cursor" &
+        else
+            echo -e "${YELLOW}Could not find Cursor executable. Please launch it manually.${NC}"
+        fi
+    fi
     echo -e "${GREEN}Cursor launched. Enjoy using DaVinci Resolve with AI assistance!${NC}"
 fi
 

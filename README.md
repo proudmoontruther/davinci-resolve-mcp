@@ -5,6 +5,7 @@
 [![Python](https://img.shields.io/badge/python-3.6+-green.svg)](https://www.python.org/downloads/)
 [![macOS](https://img.shields.io/badge/macOS-stable-brightgreen.svg)](https://www.apple.com/macos/)
 [![Windows](https://img.shields.io/badge/Windows-stable-brightgreen.svg)](https://www.microsoft.com/windows)
+[![Linux](https://img.shields.io/badge/Linux-stable-brightgreen.svg)](https://www.linux.org/)
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 A Model Context Protocol (MCP) server that connects AI coding assistants (Cursor, Claude Desktop) to DaVinci Resolve, enabling them to query and control DaVinci Resolve through natural language.
@@ -15,7 +16,7 @@ For a comprehensive list of implemented and planned features, see [docs/FEATURES
 
 ## Requirements
 
-- **macOS** or **Windows** with DaVinci Resolve installed
+- **macOS**, **Windows**, or **Linux** with DaVinci Resolve installed
 - **Python 3.6+**
 - DaVinci Resolve running in the background
 - (Optional) Node.js/npm for some features
@@ -32,9 +33,9 @@ For detailed installation instructions, please see [INSTALL.md](INSTALL.md). Thi
 
 | Platform | Status | One-Step Install | Quick Start |
 |----------|--------|------------------|-------------|
-| macOS | ✅ Stable | `./install.sh` | `./run-now.sh` |
-| Windows | ✅ Stable | `install.bat` | `run-now.bat` |
-| Linux | ❌ Not supported | N/A | N/A |
+| macOS | ✅ Stable | `./scripts/setup/install.sh` | `./scripts/run-now.sh` |
+| Windows | ✅ Stable | `scripts\setup\install.bat` | `scripts\run-now.bat` |
+| Linux | ✅ Stable | `./scripts/setup/install.sh` | `./scripts/run-now.sh` |
 
 ## Quick Start Guide
 
@@ -117,6 +118,13 @@ For detailed troubleshooting guidance, refer to the [INSTALL.md](INSTALL.md#trou
 - Check Console.app for any Python-related errors
 - Verify environment variables are set correctly
 - DaVinci Resolve must be running before starting the server
+
+### Linux
+- Ensure DaVinci Resolve is installed in `/opt/resolve/` (default location)
+- Make scripts executable: `chmod +x scripts/*.sh`
+- Verify environment variables are set correctly
+- DaVinci Resolve must be running before starting the server
+- For custom installation paths, update paths in `src/utils/platform.py`
 
 ## Support
 
@@ -225,18 +233,25 @@ For a complete manual installation:
    export PYTHONPATH="$PYTHONPATH:$RESOLVE_SCRIPT_API/Modules/"
    ```
 
+   **For Linux**:
+   ```bash
+   export RESOLVE_SCRIPT_API="/opt/resolve/Developer/Scripting"
+   export RESOLVE_SCRIPT_LIB="/opt/resolve/libs/Fusion/fusionscript.so"
+   export PYTHONPATH="$PYTHONPATH:$RESOLVE_SCRIPT_API/Modules/"
+   ```
+
    **For Windows**:
    ```cmd
    set RESOLVE_SCRIPT_API=C:\ProgramData\Blackmagic Design\DaVinci Resolve\Support\Developer\Scripting
    set RESOLVE_SCRIPT_LIB=C:\Program Files\Blackmagic Design\DaVinci Resolve\fusionscript.dll
    set PYTHONPATH=%PYTHONPATH%;%RESOLVE_SCRIPT_API%\Modules
    ```
-   
+
    Alternatively, run the pre-launch check script which will set these for you:
    ```
-   # On macOS
+   # On macOS/Linux
    ./scripts/check-resolve-ready.sh
-   
+
    # On Windows
    ./scripts/check-resolve-ready.bat
    ```
@@ -415,9 +430,9 @@ Samuel Gursky (samgursky@gmail.com)
 
 ## Future Plans
 
-- Windows and Linux support
 - Additional DaVinci Resolve features
-- Support for Claude Desktop
+- Enhanced cross-platform compatibility
+- Advanced timeline manipulation features
 
 ## Development
 
