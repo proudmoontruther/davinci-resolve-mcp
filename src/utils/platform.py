@@ -43,11 +43,21 @@ def get_resolve_paths():
         lib_path = os.path.join(program_files_64, 'Blackmagic Design', 'DaVinci Resolve', 'fusionscript.dll')
         modules_path = os.path.join(api_path, "Modules")
     
-    elif platform_name == 'linux':  # Linux (not fully implemented)
-        # Default locations for Linux - these may need to be adjusted
+    elif platform_name == 'linux':  # Linux
+        # DaVinci Resolve on Linux is typically installed in /opt/resolve
+        # The default installation paths are:
         api_path = "/opt/resolve/Developer/Scripting"
-        lib_path = "/opt/resolve/libs/fusionscript.so"
+        lib_path = "/opt/resolve/libs/Fusion/fusionscript.so"
         modules_path = os.path.join(api_path, "Modules")
+
+        # Check for alternate installation paths if defaults don't exist
+        if not os.path.exists(api_path):
+            # Try home directory installation
+            home_resolve = os.path.expanduser("~/opt/resolve/Developer/Scripting")
+            if os.path.exists(home_resolve):
+                api_path = home_resolve
+                lib_path = os.path.expanduser("~/opt/resolve/libs/Fusion/fusionscript.so")
+                modules_path = os.path.join(api_path, "Modules")
     
     else:
         # Fallback to macOS paths if unknown platform

@@ -10,6 +10,17 @@ RED='\033[0;31m'
 BOLD='\033[1m'
 NC='\033[0m' # No Color
 
+# Detect platform
+PLATFORM=$(uname -s)
+IS_MACOS=false
+IS_LINUX=false
+
+if [[ "$PLATFORM" == "Darwin" ]]; then
+    IS_MACOS=true
+elif [[ "$PLATFORM" == "Linux" ]]; then
+    IS_LINUX=true
+fi
+
 # Get the absolute path of this script's location
 INSTALL_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 VENV_DIR="$INSTALL_DIR/venv"
@@ -44,8 +55,24 @@ log() {
 check_resolve_running() {
     log "Checking if DaVinci Resolve is running"
     echo -ne "${YELLOW}Checking if DaVinci Resolve is running... ${NC}"
-    
-    if ps -ef | grep -i "[D]aVinci Resolve" > /dev/null; then
+
+    local is_running=false
+    if $IS_MACOS; then
+        if pgrep -x "Resolve" > /dev/null; then
+            is_running=true
+        fi
+    elif $IS_LINUX; then
+        if pgrep -i "resolve" > /dev/null; then
+            is_running=true
+        fi
+    else
+        # Fallback for other platforms
+        if ps -ef | grep -i "[D]aVinci Resolve" > /dev/null; then
+            is_running=true
+        fi
+    fi
+
+    if $is_running; then
         echo -e "${GREEN}OK${NC}"
         log "DaVinci Resolve is running"
         return 0
@@ -109,34 +136,45 @@ install_mcp() {
 setup_env_vars() {
     log "Setting up environment variables"
     echo -ne "${YELLOW}Setting up environment variables... ${NC}"
-    
+
+    # Set platform-specific paths
+    if $IS_MACOS; then
+        RESOLVE_SCRIPT_API="/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting"
+        RESOLVE_SCRIPT_LIB="/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/fusionscript.so"
+        SHELL_PROFILE="~/.zshrc"
+    elif $IS_LINUX; then
+        RESOLVE_SCRIPT_API="/opt/resolve/Developer/Scripting"
+        RESOLVE_SCRIPT_LIB="/opt/resolve/libs/Fusion/fusionscript.so"
+        SHELL_PROFILE="~/.bashrc"
+    fi
+
     # Generate environment variables file
     ENV_FILE="$INSTALL_DIR/.env"
     cat > "$ENV_FILE" << EOF
-RESOLVE_SCRIPT_API="/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting"
-RESOLVE_SCRIPT_LIB="/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/fusionscript.so"
+RESOLVE_SCRIPT_API="$RESOLVE_SCRIPT_API"
+RESOLVE_SCRIPT_LIB="$RESOLVE_SCRIPT_LIB"
 PYTHONPATH="\$PYTHONPATH:$RESOLVE_SCRIPT_API/Modules/"
 EOF
-    
+
     # Source the environment variables
     source "$ENV_FILE"
-    
+
     # Export them for the current session
-    export RESOLVE_SCRIPT_API="/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting"
-    export RESOLVE_SCRIPT_LIB="/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/fusionscript.so"
+    export RESOLVE_SCRIPT_API="$RESOLVE_SCRIPT_API"
+    export RESOLVE_SCRIPT_LIB="$RESOLVE_SCRIPT_LIB"
     export PYTHONPATH="$PYTHONPATH:$RESOLVE_SCRIPT_API/Modules/"
-    
+
     echo -e "${GREEN}OK${NC}"
     log "Environment variables set:"
     log "RESOLVE_SCRIPT_API=$RESOLVE_SCRIPT_API"
     log "RESOLVE_SCRIPT_LIB=$RESOLVE_SCRIPT_LIB"
-    
+
     # Suggest adding to shell profile
     echo -e "${YELLOW}Consider adding these environment variables to your shell profile:${NC}"
-    echo -e "${BLUE}  echo 'export RESOLVE_SCRIPT_API=\"/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting\"' >> ~/.zshrc${NC}"
-    echo -e "${BLUE}  echo 'export RESOLVE_SCRIPT_LIB=\"/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/fusionscript.so\"' >> ~/.zshrc${NC}"
-    echo -e "${BLUE}  echo 'export PYTHONPATH=\"\$PYTHONPATH:\$RESOLVE_SCRIPT_API/Modules/\"' >> ~/.zshrc${NC}"
-    
+    echo -e "${BLUE}  echo 'export RESOLVE_SCRIPT_API=\"$RESOLVE_SCRIPT_API\"' >> $SHELL_PROFILE${NC}"
+    echo -e "${BLUE}  echo 'export RESOLVE_SCRIPT_LIB=\"$RESOLVE_SCRIPT_LIB\"' >> $SHELL_PROFILE${NC}"
+    echo -e "${BLUE}  echo 'export PYTHONPATH=\"\$PYTHONPATH:\$RESOLVE_SCRIPT_API/Modules/\"' >> $SHELL_PROFILE${NC}"
+
     return 0
 }
 

@@ -7,9 +7,26 @@ GREEN='\033[0;32m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
+# Detect platform
+PLATFORM=$(uname -s)
+IS_MACOS=false
+IS_LINUX=false
+
+if [[ "$PLATFORM" == "Darwin" ]]; then
+    IS_MACOS=true
+elif [[ "$PLATFORM" == "Linux" ]]; then
+    IS_LINUX=true
+fi
+
 # Get the directory where this script is located
-SCRIPT_PATH="$(readlink -f "$0")"
-SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+# Use different readlink syntax for macOS vs Linux
+if $IS_LINUX; then
+    SCRIPT_PATH="$(readlink -f "$0")"
+    SCRIPT_DIR="$(dirname "$SCRIPT_PATH")"
+else
+    # macOS doesn't have readlink -f
+    SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+fi
 ROOT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 VENV_DIR="$ROOT_DIR/venv"
 SERVER_PATH="$ROOT_DIR/src/resolve_mcp_server.py"
@@ -27,14 +44,26 @@ fi
 echo -e "${YELLOW}Installing dependencies from requirements.txt...${NC}"
 "$VENV_DIR/bin/pip" install -r "$ROOT_DIR/requirements.txt"
 
-# Source environment variables from .zshrc if they exist
-if grep -q "RESOLVE_SCRIPT_API" "$HOME/.zshrc"; then
-    echo -e "${YELLOW}Sourcing environment variables from .zshrc...${NC}"
-    source "$HOME/.zshrc"
+# Source environment variables from shell config if they exist
+SHELL_CONFIG=""
+if [ -f "$HOME/.zshrc" ]; then
+    SHELL_CONFIG="$HOME/.zshrc"
+elif [ -f "$HOME/.bashrc" ]; then
+    SHELL_CONFIG="$HOME/.bashrc"
+fi
+
+if [ -n "$SHELL_CONFIG" ] && grep -q "RESOLVE_SCRIPT_API" "$SHELL_CONFIG"; then
+    echo -e "${YELLOW}Sourcing environment variables from $SHELL_CONFIG...${NC}"
+    source "$SHELL_CONFIG"
 else
     echo -e "${YELLOW}Setting environment variables...${NC}"
-    export RESOLVE_SCRIPT_API="/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting"
-    export RESOLVE_SCRIPT_LIB="/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/fusionscript.so"
+    if $IS_MACOS; then
+        export RESOLVE_SCRIPT_API="/Library/Application Support/Blackmagic Design/DaVinci Resolve/Developer/Scripting"
+        export RESOLVE_SCRIPT_LIB="/Applications/DaVinci Resolve/DaVinci Resolve.app/Contents/Libraries/Fusion/fusionscript.so"
+    elif $IS_LINUX; then
+        export RESOLVE_SCRIPT_API="/opt/resolve/Developer/Scripting"
+        export RESOLVE_SCRIPT_LIB="/opt/resolve/libs/Fusion/fusionscript.so"
+    fi
     export PYTHONPATH="$PYTHONPATH:$RESOLVE_SCRIPT_API/Modules/"
 fi
 
@@ -48,14 +77,25 @@ else
 fi
 
 # Check if DaVinci Resolve is running
-if ps -ef | grep -i "[D]aVinci Resolve" > /dev/null; then
+check_resolve_running() {
+    if $IS_MACOS; then
+        pgrep -x "Resolve" > /dev/null
+    elif $IS_LINUX; then
+        pgrep -i "resolve" > /dev/null
+    else
+        # Fallback for other platforms
+        ps -ef | grep -i "[D]aVinci Resolve" > /dev/null || pgrep -i "resolve" > /dev/null
+    fi
+}
+
+if check_resolve_running; then
     echo -e "${GREEN}✓ DaVinci Resolve is running${NC}"
 else
     echo -e "${RED}✗ DaVinci Resolve is not running${NC}"
     echo -e "${YELLOW}Please start DaVinci Resolve before continuing${NC}"
     echo -e "${YELLOW}Waiting 10 seconds for you to start DaVinci Resolve...${NC}"
     sleep 10
-    if ! ps -ef | grep -i "[D]aVinci Resolve" > /dev/null; then
+    if ! check_resolve_running; then
         echo -e "${RED}DaVinci Resolve still not running. Please start it manually.${NC}"
         echo -e "${YELLOW}You can run this script again after starting DaVinci Resolve.${NC}"
         exit 1
